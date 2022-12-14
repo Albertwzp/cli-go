@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	//yaml "gopkg.in/yaml.v3"
 )
 
 func Html(kv map[string]string) string {
@@ -78,21 +77,17 @@ func FormatData(result *corev1.PodList) (data [][]string) {
 	return data
 }
 
-func FormatYaml(cmlist *v1.ConfigMapList, key string) map[string]string {
+func ConvertYaml(data string) (kv map[string]string, err error) {
 	cs := make(map[string]string)
-	for _, cm := range cmlist.Items {
-		if strings.Contains(cm.Name, key+"-configmap") {
-			data := cm.Data["application.yaml"]
-			//yaml.Unmarshal()
-			viper.SetConfigType("YAML")
-			viper.ReadConfig(bytes.NewBuffer([]byte(data)))
-			ks := viper.AllKeys()
-			for _, k := range ks {
-				cs[k] = viper.GetString(k)
-			}
-		}
+	viper.SetConfigType("YAML")
+	if err := viper.ReadConfig(bytes.NewBuffer([]byte(data))); err != nil {
+		return nil, err
 	}
-	return cs
+	ks := viper.AllKeys()
+	for _, k := range ks {
+		cs[k] = viper.GetString(k)
+	}
+	return cs, nil
 }
 
 func KvUnion(cm, vault map[string]string) map[string]string {
