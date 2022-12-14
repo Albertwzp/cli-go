@@ -4,45 +4,20 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/Albertwzp/cli-go/config"
 	vault "github.com/hashicorp/vault/api"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
-
-type sortable [][]string
-
-func (s sortable) Len() int {
-	return len(s)
-}
-func (s sortable) Less(i, j int) bool {
-	if s[i][0] == s[j][0] {
-		return s[i][1] <= s[j][1]
-	}
-	return s[i][0] <= s[j][0]
-}
-func (s sortable) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
 
 type Conn struct {
 	K8sC   []*kubernetes.Clientset
 	VaultC *vault.Client
 	Env    string
 }
-
-/*type VaultInfo struct {
-	VServer string `json:"vserver"`
-	VToken string `json:"vtoken"`
-}
-type ClsInfo struct {
-	ClsServer string `json:"clsserver"`
-	ClsSa string `json:"clssa"`
-}
-type ConInfo struct {
-
-}*/
 
 func CreateConn(env string, vi [2]string, ci [][2]string) *Conn {
 	vclient := VaultC(vi[0], vi[1])
@@ -59,29 +34,33 @@ func CreateConn(env string, vi [2]string, ci [][2]string) *Conn {
 	}
 }
 
-func (c *Conn) GetCm(app string) map[string]string {
+func FormatYaml(cmlist *v1.ConfigMapList, key string) map[string]string {
 	var kv map[string]string
-	for _, k := range c.K8sC {
-		cmClient := k.CoreV1().ConfigMaps("")
-		resultC, err := cmClient.List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			fmt.Println("podclient get pods failed! err: ", err)
-			panic(err.Error())
-		}
-		if kv = FormatYaml(resultC, app); len(kv) > 0 {
-			break
+	for _, cm := range cmlist.Items {
+		if strings.Contains(cm.Name, key+"-configmap") {
+			data := cm.Data["application.yaml"]
+			//yaml.Unmarshal()
+			kv, _ = ConvertYaml(data)
 		}
 	}
 	return kv
 }
-
+func (c *Conn) SearchCm(app string) map[string]string {
+	for _, cs := range c.K8sC {
+		cmClient := cs.CoreV1().ConfigMaps("")
+		resultC, _ := cmClient.List(context.TODO(), metav1.ListOptions{})
+		kv := FormatYaml(resultC, app)
+		return kv
+	}
+	return nil
+}
 func (c *Conn) GetVt(app string) map[string]string {
 	kv := VaultKv(c.VaultC, c.Env, app)
 	return kv
 }
 
 func (c *Conn) Union(app string) map[string]string {
-	cc := c.GetCm(app)
+	cc := c.SearchCm(app)
 	//cv := make(map[string]string)
 	cv := c.GetVt(app)
 	return KvUnion(cc, cv)

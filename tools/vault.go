@@ -2,9 +2,9 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"strings"
-	"encoding/json"
 
 	vault "github.com/hashicorp/vault/api"
 )
